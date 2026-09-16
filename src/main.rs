@@ -38,11 +38,14 @@ fn quantize_image(img: &RgbaImage, num_colors: u8) -> Result<RgbaImage, Box<dyn 
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let resized = load_and_resize_img("image.png", 250, 250)?;
-    let quantized = quantize_image(&resized, 16)?;
+    // let resized = load_and_resize_img("image.png", 250, 250)?;
+    // let quantized = quantize_image(&resized, 32)?;
 
-    quantized.save("processed.png")?;
+    // quantized.save("processed.png")?;
 
-    println!("{} x {}", quantized.width(), quantized.height());
+    // println!("{} x {}", quantized.width(), quantized.height());
+
+    colors_csv_to_vec();
+
     Ok(())
 }
