@@ -6,11 +6,20 @@ use quantize_palette::palette::{Metric, Palette};
 use quantize_palette::quantize::{quantize, AlphaMode, Dither};
 
 
-fn load_and_resize_img(name: &str, width: u32, height: u32) -> Result<RgbaImage, Box<dyn std::error::Error>> {
+fn load_and_resize_img(name: &str, width: u32, height: Option<u32>, keep_proportions: bool) -> Result<RgbaImage, Box<dyn std::error::Error>> {
     let img = ImageReader::open(name)?.decode()?;
-    let resized = imageops::resize(&img, width, height, imageops::FilterType::Lanczos3);
+
+    let new_height = if keep_proportions {
+        (width as f32 * img.height() as f32 / img.width() as f32) as u32
+    } else {
+        height.ok_or("Height is required when proportions are disabled")?
+    };
+    
+    let resized = imageops::resize(&img, width, new_height, imageops::FilterType::Lanczos3);
     Ok(resized)
 }
+
+//fn apply_median_filter()
 
 fn quantize_image(img: &RgbaImage, num_colors: u8) -> Result<RgbaImage, Box<dyn std::error::Error>> {
     let width = img.width();
@@ -72,11 +81,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let img_name = &args[1];
 
     let full_path = format!("test_images/{img_name}");
+    let out_path = format!("test_images/processed_images/{img_name}");
 
-    let resized = load_and_resize_img(&full_path, 250, 250)?;
+    let resized = load_and_resize_img(&full_path, 250, None, true)?;
     let quantized = quantize_image(&resized, 32)?;
-
-    quantized.save("processed.png")?;
 
     println!("{} x {}", quantized.width(), quantized.height());
 
@@ -93,9 +101,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let out = quantize(&quantized, &palette, Metric::Oklab, AlphaMode::Binarize(128), Dither::None);
 
+    let filtered = imageproc::filter::median_filter(&out, 1, 1);
 
-
-    out.save("processed_with_palette.png")?;
+    filtered.save(&out_path)?;
 
     Ok(())
 }
