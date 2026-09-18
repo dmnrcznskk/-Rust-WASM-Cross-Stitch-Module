@@ -74,6 +74,24 @@ fn colors_csv_to_vec(path: &str) -> Result<Vec<DmcColor>, Box<dyn std::error::Er
     Ok(colors)
 }
 
+fn save_image(img: &RgbaImage, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let ext = std::path::Path::new(out_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "jpg" | "jpeg" | "bmp" => {
+            image::DynamicImage::ImageRgba8(img.clone()).to_rgb8().save(out_path)?;
+        }
+        _ => {
+            img.save(out_path)?;
+        }
+    }
+    Ok(())
+}
+
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -83,8 +101,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let full_path = format!("test_images/{img_name}");
     let out_path = format!("test_images/processed_images/{img_name}");
 
-    let resized = load_and_resize_img(&full_path, 250, None, true)?;
-    let quantized = quantize_image(&resized, 32)?;
+    let resized = load_and_resize_img(&full_path, 700, None, true)?;
+    let quantized = quantize_image(&resized, 16)?;
 
     println!("{} x {}", quantized.width(), quantized.height());
 
@@ -103,7 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let filtered = imageproc::filter::median_filter(&out, 1, 1);
 
-    filtered.save(&out_path)?;
+    save_image(&filtered, &out_path)?;
 
     Ok(())
 }
