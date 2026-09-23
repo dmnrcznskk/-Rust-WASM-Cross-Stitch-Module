@@ -1,10 +1,13 @@
-use image::{ImageReader, RgbaImage, ImageBuffer};
+use image::{DynamicImage, ImageReader, RgbaImage, ImageBuffer, GrayImage, RgbImage};
 use image::imageops;
 use imagequant::RGBA;
 use rgb::FromSlice;
 use quantize_palette::palette::{Metric, Palette};
 use quantize_palette::quantize::{quantize, AlphaMode, Dither};
 mod importance_map;
+
+use std::time::Instant;
+use std::time::Duration;
 
 fn load_and_resize_img(name: &str, width: u32, height: Option<u32>, keep_proportions: bool) -> Result<RgbaImage, Box<dyn std::error::Error>> {
     let img = ImageReader::open(name)?.decode()?;
@@ -95,6 +98,8 @@ fn save_image(img: &RgbaImage, out_path: &str) -> Result<(), Box<dyn std::error:
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let start = Instant::now();
+
     let args: Vec<String> = std::env::args().collect();
     let img_name = &args[1];
 
@@ -122,6 +127,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let filtered = imageproc::filter::median_filter(&out, 1, 1);
 
     save_image(&filtered, &out_path)?;
+
+    let dynamic = DynamicImage::ImageRgba8(filtered.clone());
+    let mut immap = importance_map::ImportanceMap::from(&dynamic);
+
+    let norm = immap.compute();
+
+    let duration = start.elapsed();
+    println!("{:?}", duration);
 
     Ok(())
 }
