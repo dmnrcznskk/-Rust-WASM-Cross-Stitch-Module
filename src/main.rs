@@ -4,7 +4,7 @@ use imagequant::RGBA;
 use rgb::FromSlice;
 use quantize_palette::palette::{Metric, Palette};
 use quantize_palette::quantize::{quantize, AlphaMode, Dither};
-
+mod importance_map;
 
 fn load_and_resize_img(name: &str, width: u32, height: Option<u32>, keep_proportions: bool) -> Result<RgbaImage, Box<dyn std::error::Error>> {
     let img = ImageReader::open(name)?.decode()?;
