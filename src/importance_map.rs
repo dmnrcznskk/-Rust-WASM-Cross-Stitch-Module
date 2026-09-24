@@ -30,10 +30,32 @@ impl ImportanceMap {
 
     }
 
+    // fn get_segments(&self, block_size: u32) -> Vec<(u32, u32, RgbImage)> {
+    //     let (width, height) = &self.image.dimensions();
+    //     let mut segments = Vec::new();
+
+    //     for y in (0..height).step_by(block_size as usize) {
+    //         if y + block_size > height { break; }
+    //         for x in (0..width).step_by(block_size as usize) {
+    //             if x + block_size > width { break; }
+    //             let segment = image::imageops::crop_imm(&self.image, x, y, block_size, block_size).to_image();
+    //             segments.push((x, y, segment));
+    //         }
+    //     }
+    //     segments
+    // }
+ 
+
     pub fn compute(&mut self) -> Vec<f32> {
         let grayscale = self.perform_sobel();
         grayscale
     }
+
+    pub fn as_u8_map(&self) -> Vec<u8> {
+    let gray = image::imageops::grayscale(&self.image);
+    let gradients = sobel_gradients(&gray);
+    gradients.as_raw().iter().map(|&v| v.min(255) as u8).collect()
+}
 
     pub fn image(&self) -> &RgbImage {
         &self.image

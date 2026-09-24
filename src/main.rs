@@ -1,101 +1,12 @@
-use image::{DynamicImage, ImageReader, RgbaImage, ImageBuffer, GrayImage, RgbImage};
-use image::imageops;
-use imagequant::RGBA;
-use rgb::FromSlice;
-use quantize_palette::palette::{Metric, Palette};
-use quantize_palette::quantize::{quantize, AlphaMode, Dither};
-mod importance_map;
-
+use image::DynamicImage;
 use std::time::Instant;
-use std::time::Duration;
 
-fn load_and_resize_img(name: &str, width: u32, height: Option<u32>, keep_proportions: bool) -> Result<RgbaImage, Box<dyn std::error::Error>> {
-    let img = ImageReader::open(name)?.decode()?;
+mod importance_map;
+mod image_io;
+mod color_reduction;
+mod dmc;
 
-    let new_height = if keep_proportions {
-        (width as f32 * img.height() as f32 / img.width() as f32) as u32
-    } else {
-        height.ok_or("Height is required when proportions are disabled")?
-    };
-    
-    let resized = imageops::resize(&img, width, new_height, imageops::FilterType::Lanczos3);
-    Ok(resized)
-}
-
-//fn apply_median_filter()
-
-fn quantize_image(img: &RgbaImage, num_colors: u8) -> Result<RgbaImage, Box<dyn std::error::Error>> {
-    let width = img.width();
-    let height = img.height();
-
-    let pixels: Vec<RGBA> = img.as_raw().as_rgba().to_vec();
-
-    let mut liq = imagequant::new();
-    liq.set_max_colors(num_colors as u32)?;
-
-    let mut liq_img = liq.new_image(pixels, width as usize, height as usize, 0.0)?;
-
-    let mut res = liq.quantize(&mut liq_img)?;
-    res.set_dithering_level(1.0)?;
-
-    let (palette, indices) = res.remapped(&mut liq_img)?;
-
-    let raw_buf: Vec<u8> = indices
-        .iter()
-        .flat_map(|&idx| {
-            let c = palette[idx as usize];
-            [c.r, c.g, c.b, c.a]
-        })
-        .collect();
-
-    RgbaImage::from_raw(width, height, raw_buf)
-        .ok_or_else(|| "Wrong buffer size".into())
-}
-
-#[derive(Debug)]
-struct DmcColor {
-    dmc_code: String,
-    color_name: String,
-    rgb: [u8; 3],
-}
-
-fn colors_csv_to_vec(path: &str) -> Result<Vec<DmcColor>, Box<dyn std::error::Error>> {
-    let mut colors = Vec::new();
-    let mut rdr = csv::Reader::from_path(path)?;
-    for result in rdr.records() {
-        let record = result?;
-        let dmc_code = record[0].trim().to_string();
-        let color_name = record[1].trim().to_string();
-        let r: u8 = record[3].trim().parse()?;
-        let g: u8 = record[4].trim().parse()?;
-        let b: u8 = record[5].trim().parse()?;
-
-        let color = DmcColor { dmc_code, color_name, rgb: [r, g, b]};
-        colors.push(color);
-    }
-
-    Ok(colors)
-}
-
-fn save_image(img: &RgbaImage, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let ext = std::path::Path::new(out_path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-
-    match ext.as_str() {
-        "jpg" | "jpeg" | "bmp" => {
-            image::DynamicImage::ImageRgba8(img.clone()).to_rgb8().save(out_path)?;
-        }
-        _ => {
-            img.save(out_path)?;
-        }
-    }
-    Ok(())
-}
-
-
+use importance_map::ImportanceMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
@@ -106,35 +17,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let full_path = format!("test_images/{img_name}");
     let out_path = format!("test_images/processed_images/{img_name}");
 
-    let resized = load_and_resize_img(&full_path, 700, None, true)?;
-    let quantized = quantize_image(&resized, 16)?;
+    let resized = image_io::load_and_resize(&full_path, 700, None, true)?;
 
+    let importance_map = ImportanceMap::from(&DynamicImage::ImageRgba8(resized.clone()));
+    let importance = importance_map.as_u8_map();
+
+    let quantized = color_reduction::quantize(&resized, 16, Some(importance))?;
     println!("{} x {}", quantized.width(), quantized.height());
 
-    let colors = colors_csv_to_vec("dmc_palette.csv")?;
+    let colors = dmc::load_palette("dmc_palette.csv")?;
+    let mapped = dmc::map_to_palette(&quantized, &colors);
 
-    let mut for_palette = Vec::new();
-    for color in &colors {
-        let rgb = color.rgb;
-        for_palette.push(rgb);
-    }
+    let filtered = imageproc::filter::median_filter(&mapped, 1, 1);
+    image_io::save(&filtered, &out_path)?;
 
-
-    let palette = Palette::from_colors(for_palette);
-
-    let out = quantize(&quantized, &palette, Metric::Oklab, AlphaMode::Binarize(128), Dither::None);
-
-    let filtered = imageproc::filter::median_filter(&out, 1, 1);
-
-    save_image(&filtered, &out_path)?;
-
-    let dynamic = DynamicImage::ImageRgba8(filtered.clone());
-    let mut immap = importance_map::ImportanceMap::from(&dynamic);
-
-    let norm = immap.compute();
-
-    let duration = start.elapsed();
-    println!("{:?}", duration);
+    println!("{:?}", start.elapsed());
 
     Ok(())
 }
