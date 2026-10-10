@@ -26,6 +26,7 @@ impl ImportanceMap {
      });
 
      let normalized: Vec<f32> = img.into_raw().into_iter().map(|x| (x as f32 / 255.0)).collect();
+     
      normalized
 
     }
