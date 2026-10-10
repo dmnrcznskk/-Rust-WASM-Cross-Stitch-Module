@@ -16,66 +16,68 @@ pub enum CanvaError {
 //         }
 //     }
 // }
+//
 
-pub struct CanvaProperties {
-    width_cm: u32,
-    height_cm: Option<u32>,
-    density_per_inch: u32,
+
+pub enum CanvaProperties {
+    Stitches { width: u32, height: Option<u32> },
+    Centimeters { width: u32, height: Option<u32>, density_inches: u32 },
 }
 
 impl CanvaProperties {
-    pub fn new(width_cm: u32, height_cm: Option<u32>, density_per_inch: u32) -> Option<Self> {
-        if density_per_inch == 0 { return None; }
-        if width_cm <= 0 { return None; }
-
-        Some( CanvaProperties{ width_cm, height_cm, density_per_inch })
+    pub fn from_stitches(w: u32, h: Option<u32>) -> Option<Self> {
+        if w == 0 || h == Some(0) { return None; }
+        Some(CanvaProperties{ w, h })
     }
 
-    pub fn width_cm(&self) -> u32 { self.width_cm }
-    pub fn height_cm(&self) -> Option<u32> { self.height_cm }
-    pub fn density_per_inch(&self) -> u32 { self.density_per_inch }
-
-    pub fn density_per_cm(&self) -> f32 { 
-        self.density_per_inch as f32 / 2.54
+    pub fn from_cm(w: u32, h: Option<u32>, density_inches: u32) {
+        if w == 0 || h == Some(0) || density_inches == 0 { return None; }
+        Some(CanvaProperties{ w, h, density_inches })
     }
 
-    pub fn grid_width(&self) -> u32 {
-        ((self.width_cm as f32 * self.density_per_cm()).round()) as u32
+    pub fn grid_height(&self) -> u32 {
+        match *self {
+            CanvaProperties::Stitches
+        }
     }
 
     pub fn grid_height(&self) -> Option<u32> {
-        let h = self.height_cm?;
-        Some((h as f32 * self.density_per_cm()).round() as u32)
+        match *self {
+            CanvaProperties::Stitches { height, .. } => height,
+            CanvaProperties::Centimeters { height_cm, density_per_inch, .. } => {
+                height_cm.map(|h| cm_to_stitches(h, density_per_inch))
+            }
+        }
     }
 }
-
+ 
+fn cm_to_stitches(cm: u32, density_per_inch: u32) -> u32 {
+    let density_per_cm = density_per_inch as f32 / 2.54;
+    (cm as f32 * density_per_cm).round() as u32
+}
+ 
 pub fn load_and_resize(name: &str, canva_prop: CanvaProperties, keep_proportions: bool, k: u32) -> Result<RgbaImage, Box<dyn std::error::Error>> {
-
+    if k == 0 {
+        return Err("k must be greater than 0".into());
+    }
+ 
     let img = ImageReader::open(name)?.decode()?;
-    img.to_rgb8();
-
+ 
     let grid_width = canva_prop.grid_width();
-
+ 
     let grid_height = if keep_proportions {
-        (grid_width as f32 * img.height() as f32 / img.width() as f32) as u32
+        (grid_width as f32 * img.height() as f32 / img.width() as f32).round() as u32
     } else {
         canva_prop.grid_height().ok_or("Height is required when proportions are disabled")?
     };
-
-    if grid_width <= 0 {
-        return Err("Grid width can't be less or equal 0".into());
+ 
+    if grid_width == 0 || grid_height == 0 {
+        return Err("Grid size must be at least 1x1 stitch".into());
     }
-
-    if grid_height <= 0 {
-        return Err("Grid height can't be less or equal 0".into());
-    }
-
-    if k <= 0 {
-        return Err("k cannot be lower or equal 0".into());
-    }
-
+ 
     Ok(imageops::resize(&img, grid_width * k, grid_height * k, imageops::FilterType::Lanczos3))
 }
+
 
 pub fn save(img: &RgbaImage, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let ext = std::path::Path::new(out_path)
