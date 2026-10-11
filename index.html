@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generator wzorów haftu krzyżykowego</title>
+<style>
+  :root {
+    --bg: #f4f3ef;
+    --panel: #ffffff;
+    --text: #1d1d1b;
+    --muted: #6b6a66;
+    --line: #dcdad3;
+    --accent: #b4432f;
+    --accent-weak: #f3dcd6;
+    --ok: #2f7d4f;
+    --err: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615;
+      --panel: #212120;
+      --text: #ecebe6;
+      --muted: #9a9990;
+      --line: #3a3936;
+      --accent: #e27a63;
+      --accent-weak: #3b2a26;
+      --ok: #6fcf97;
+      --err: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .app { display: grid; grid-template-columns: 1fr 340px; height: 100vh; }
+  @media (max-width: 800px) {
+    .app { grid-template-columns: 1fr; height: auto; }
+    .viewport { min-height: 55vh; }
+  }
+
+  /* --- lewa strona: podgląd --- */
+  .stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .badge {
+    font-size: 12px; padding: 2px 8px; border-radius: 999px;
+    background: var(--accent-weak); color: var(--accent);
+  }
+  .badge.ok { background: transparent; color: var(--ok); border: 1px solid var(--ok); }
+  .status { color: var(--muted); margin-left: auto; }
+  .status.error { color: var(--err); }
+
+  .viewport {
+    flex: 1; min-height: 0; overflow: auto; padding: 16px;
+    display: flex;
+  }
+  .viewport canvas {
+    margin: auto; display: block; background: #fff;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, .18);
+    image-rendering: pixelated;
+  }
+  .drop {
+    flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
+    border: 2px dashed var(--line); border-radius: 12px; cursor: pointer; color: var(--muted);
+    padding: 24px;
+  }
+  .drop[hidden], canvas[hidden] { display: none; }
+  .drop strong { display: block; font-size: 18px; color: var(--text); margin-bottom: 4px; }
+  .drop.over { border-color: var(--accent); background: var(--accent-weak); }
+
+  /* --- prawa strona: panel --- */
+  .panel {
+    background: var(--panel); border-left: 1px solid var(--line);
+    overflow-y: auto; padding: 4px 16px 24px;
+  }
+  .panel section { padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .panel section:last-child { border-bottom: 0; }
+  .panel h2 {
+    margin: 0 0 10px; font-size: 12px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  .field > label, .field > .label {
+    display: flex; justify-content: space-between; margin-bottom: 4px;
+  }
+  .muted { color: var(--muted); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .pair { display: flex; gap: 8px; align-items: center; }
+  .pair input[type="range"] { flex: 1; min-width: 0; }
+  .pair input[type="number"] { width: 68px; }
+  input[type="range"] { accent-color: var(--accent); }
+  input[type="number"], select {
+    font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--text);
+  }
+  select { width: 100%; }
+  .check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; }
+  .check:last-child { margin-bottom: 0; }
+
+  .segmented { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .segmented label { flex: 1; text-align: center; padding: 6px 8px; cursor: pointer; }
+  .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+  .segmented input:checked + span { font-weight: 600; }
+  .segmented label:has(input:checked) { background: var(--accent-weak); color: var(--accent); }
+
+  .btn {
+    display: inline-block; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--accent); color: var(--accent); background: transparent;
+    font: inherit; text-align: center;
+  }
+  .btn:hover { background: var(--accent-weak); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.full { width: 100%; }
+
+  .legend { display: flex; flex-direction: column; gap: 4px; }
+  .legend-row {
+    display: grid; grid-template-columns: 22px 22px 1fr auto; gap: 8px; align-items: center;
+  }
+  .swatch { width: 22px; height: 22px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, .25); }
+  .sym { text-align: center; font-weight: 600; }
+  .legend-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- LEWA STRONA: wczytywanie zdjęcia i podgląd wzoru -->
+  <main class="stage">
+    <header class="bar">
+      <strong>Wzór haftu krzyżykowego</strong>
+      <span id="engine" class="badge">Ładowanie silnika…</span>
+      <span id="status" class="status" aria-live="polite"></span>
+    </header>
+    <div id="viewport" class="viewport">
+      <label id="drop" class="drop" for="file">
+        <div>
+          <strong>Wgraj zdjęcie</strong>
+          Przeciągnij plik tutaj albo kliknij, żeby go wybrać.
+        </div>
+      </label>
+      <canvas id="canvas" hidden></canvas>
+    </div>
+  </main>
+
+  <!-- PRAWA STRONA: ustawienia -->
+  <aside class="panel">
+    <input type="file" id="file" accept="image/*" hidden>
+
+    <section>
+      <h2>Zdjęcie</h2>
+      <label class="btn full" for="file">Wybierz zdjęcie</label>
+      <div id="fileinfo" class="hint">Nie wybrano pliku.</div>
+    </section>
+
+    <section>
+      <h2>Rozmiar wzoru</h2>
+
+      <div class="field">
+        <div class="label">Jednostka</div>
+        <div class="segmented">
+          <label><input type="radio" name="unit" value="cm" checked><span>Centymetry</span></label>
+          <label><input type="radio" name="unit" value="st"><span>Ściegi</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="width">Szerokość <span id="widthUnit" class="muted">cm</span></label>
+        <div class="pair">
+          <input type="range" id="width" min="2" max="100" value="20">
+          <input type="number" id="widthNum" min="2" max="100" value="20">
+        </div>
+      </div>
+
+      <label class="check">
+        <input type="checkbox" id="keep" checked> Zachowaj proporcje zdjęcia
+      </label>
+
+      <div class="field">
+        <label for="height">Wysokość <span id="heightUnit" class="muted">cm</span></label>
+        <div class="pair">
+          <input type="range" id="height" min="2" max="100" value="15" disabled>
+          <input type="number" id="heightNum" min="2" max="100" value="15" disabled>
+        </div>
+        <div class="hint" id="heightHint">Liczona automatycznie z proporcji zdjęcia.</div>
+      </div>
+
+      <div class="field" id="densityRow">
+        <label for="density">Gęstość kanwy (ściegi na cal)</label>
+        <select id="density">
+          <option value="11">11 (Aida 11)</option>
+          <option value="14" selected>14 (Aida 14)</option>
+          <option value="16">16 (Aida 16)</option>
+          <option value="18">18 (Aida 18)</option>
+          <option value="20">20</option>
+          <option value="22">22</option>
+        </select>
+      </div>
+    </section>
+
+    <section>
+      <h2>Kolory</h2>
+      <div class="field">
+        <label for="colors">Liczba kolorów <output id="colorsOut">30</output></label>
+        <input type="range" id="colors" min="2" max="60" value="30" style="width:100%">
+      </div>
+    </section>
+
+    <section>
+      <h2>Dokładność</h2>
+      <div class="field">
+        <label for="k">Skala robocza (k) <output id="kOut">8</output></label>
+        <input type="range" id="k" min="1" max="16" value="8" style="width:100%">
+        <div class="hint">Więcej pikseli na jeden ścieg: więcej szczegółów, ale dłuższe liczenie.</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Wygląd podglądu</h2>
+      <div class="field">
+        <label for="cell">Rozmiar ściegu na ekranie <output id="cellOut">12</output> px</label>
+        <input type="range" id="cell" min="4" max="40" value="12" style="width:100%">
+      </div>
+      <label class="check"><input type="checkbox" id="symbols" checked> Symbole</label>
+      <label class="check"><input type="checkbox" id="grid" checked> Siatka (grubsza co 10)</label>
+    </section>
+
+    <section>
+      <h2>Legenda <span id="legendTotal" class="muted"></span></h2>
+      <div id="legend" class="legend"><span class="hint">Pojawi się po wygenerowaniu wzoru.</span></div>
+    </section>
+
+    <section>
+      <button id="download" class="btn full" disabled>Pobierz podgląd jako PNG</button>
+    </section>
+  </aside>
+</div>
+
+<script type="module">
+/*
+ * KONTRAKT Z RUSTEM (funkcja eksportowana przez wasm-bindgen)
+ *
+ *   generate_pattern(
+ *     image_bytes: &[u8],        // zdjęcie jako PNG (strona sama je tak przygotowuje)
+ *     unit_is_cm: bool,          // true = wymiary w cm, false = w ściegach
+ *     width: u32,                // szerokość w wybranej jednostce
+ *     height: u32,               // wysokość; 0 oznacza "z proporcji zdjęcia"
+ *     density_per_inch: u32,     // używane tylko gdy unit_is_cm == true
+ *     colors: u8,                // liczba kolorów
+ *     k: u32,                    // skala robocza
+ *   ) -> Result<Pattern, JsValue>
+ *
+ *   Pattern ma metody: width() -> u32, height() -> u32,
+ *                      indices() -> Uint16Array  (jeden indeks legendy na ścieg, rzędami),
+ *                      legend_json() -> String
+ *
+ *   legend_json to tablica obiektów:
+ *     { "code": "310", "name": "Black", "rgb": [0,0,0], "count": 1234, "symbol": "●" }
+ *   (pole "symbol" jest opcjonalne, brakujące strona uzupełni sama)
+ */
+
+const MAX_INPUT_SIDE = 2000;   // zdjęcia większe niż to są zmniejszane przed wysłaniem do WASM
+const MAX_CANVAS_SIDE = 8000;  // ograniczenie rozmiaru canvasu w pikselach
+const DEBOUNCE_MS = 200;       // tyle czeka po ostatniej zmianie suwaka, zanim przeliczy wzór
+
+const SYMBOLS = [
+  '●','■','▲','◆','★','✚','✖','♥','♣','♠','○','□','△','◇','☆',
+  '+','×','#','@','%','&','*','?',
+  'A','B','C','D','E','F','G','H','J','K','L','M','N','P','Q','R','S','T','U','V','W','X','Y','Z',
+  '2','3','4','5','6','7','8','9','a','b','d','e','g','h','k'
+];
+
+const UNIT_CFG = {
+  cm: { label: 'cm',     wMin: 2,  wMax: 100, w: 20,  hMin: 2,  hMax: 100, h: 15 },
+  st: { label: 'ściegi', wMin: 20, wMax: 400, w: 120, hMin: 20, hMax: 400, h: 90 },
+};
+
+const $ = (id) => document.getElementById(id);
+const state = {
+  bytes: null,       // zdjęcie jako PNG w bajtach (dla WASM)
+  fileName: '',
+  pattern: null,     // { width, height, indices, legend }
+  wasm: null,
+};
+let genId = 0;
+let timer = null;
+
+/* ---------- pomocnicze ---------- */
+
+function setStatus(text, isError = false) {
+  const el = $('status');
+  el.textContent = text;
+  el.classList.toggle('error', isError);
+}
+
+function setEngine(text, ok) {
+  const el = $('engine');
+  el.textContent = text;
+  el.classList.toggle('ok', ok);
+}
+
+function currentUnit() {
+  return document.querySelector('input[name="unit"]:checked').value;
+}
+
+function readParams() {
+  return {
+    unit: currentUnit(),
+    width: Number($('width').value),
+    height: Number($('height').value),
+    keepProportions: $('keep').checked,
+    density: Number($('density').value),
+    colors: Number($('colors').value),
+    k: Number($('k').value),
+  };
+}
+
+/* ---------- silnik: WASM ---------- */
+
+async function initEngine() {
+  try {
+    const mod = await import('./pkg/prototype.js');
+    await mod.default();
+    if (typeof mod.generate_pattern !== 'function') {
+      throw new Error('moduł WASM nie eksportuje funkcji generate_pattern');
+    }
+    state.wasm = mod;
+    setEngine('Silnik: WASM', true);
+  } catch (e) {
+    console.error('Nie załadowano WASM:', e);
+    setEngine('WASM niedostępny', false);
+    setStatus(`Nie można uruchomić WASM: ${e.message || e}. Sprawdź konsolę (F12).`, true);
+    $('file').disabled = true;
+    $('download').disabled = true;
+  }
+}
+
+// Prawdziwy pipeline w Ruście.
+function generateWasm(bytes, p) {
+  const raw = state.wasm.generate_pattern(
+    bytes,
+    p.unit === 'cm',
+    p.width,
+    p.keepProportions ? 0 : p.height,
+    p.density,
+    p.colors,
+    p.k
+  );
+  try {
+    return {
+      width: raw.width(),
+      height: raw.height(),
+      indices: raw.indices(),
+      legend: JSON.parse(raw.legend_json()),
+    };
+  } finally {
+    if (typeof raw.free === 'function') raw.free(); // zwolnij pamięć obiektu po stronie WASM
+  }
+}
+
+/* ---------- generowanie wzoru ---------- */
+
+function scheduleGenerate() {
+  clearTimeout(timer);
+  timer = setTimeout(generate, DEBOUNCE_MS);
+}
+
+async function generate() {
+  if (!state.bytes || !state.wasm) return;
+  const id = ++genId;
+  const params = readParams();
+  setStatus('Liczę…');
+  // oddaj sterowanie przeglądarce, żeby zdążyła pokazać komunikat przed blokującym liczeniem
+  await new Promise((r) => setTimeout(r, 20));
+  if (id !== genId) return; // w międzyczasie ruszono suwak, ta wersja jest już nieaktualna
+
+  const t0 = performance.now();
+  try {
+    const pattern = generateWasm(state.bytes, params);
+    pattern.legend.forEach((c, i) => {
+      if (!c.symbol) c.symbol = SYMBOLS[i % SYMBOLS.length];
+    });
+    state.pattern = pattern;
+    const ms = Math.round(performance.now() - t0);
+    setStatus(`${pattern.width} × ${pattern.height} ściegów, ${pattern.legend.length} kolorów, ${ms} ms`);
+    render();
+    renderLegend();
+  } catch (e) {
+    console.error(e);
+    setStatus(`Błąd: ${e}`, true);
+  }
+}
+
+/* ---------- rysowanie ---------- */
+
+function render() {
+  const pat = state.pattern;
+  if (!pat) return;
+  const canvas = $('canvas');
+
+  const maxCell = Math.max(1, Math.floor(MAX_CANVAS_SIDE / Math.max(pat.width, pat.height)));
+  const cell = Math.min(Number($('cell').value), maxCell);
+  canvas.width = pat.width * cell;
+  canvas.height = pat.height * cell;
+  const ctx = canvas.getContext('2d');
+
+  const css = pat.legend.map((c) => `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`);
+  const textColor = pat.legend.map((c) => {
+    const lum = 0.299 * c.rgb[0] + 0.587 * c.rgb[1] + 0.114 * c.rgb[2];
+    return lum > 150 ? '#000' : '#fff';
+  });
+
+  for (let y = 0; y < pat.height; y++) {
+    for (let x = 0; x < pat.width; x++) {
+      const idx = pat.indices[y * pat.width + x];
+      if (css[idx] === undefined) continue;
+      ctx.fillStyle = css[idx];
+      ctx.fillRect(x * cell, y * cell, cell, cell);
+    }
+  }
+
+  if ($('symbols').checked && cell >= 8) {
+    ctx.font = `${Math.floor(cell * 0.7)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let y = 0; y < pat.height; y++) {
+      for (let x = 0; x < pat.width; x++) {
+        const idx = pat.indices[y * pat.width + x];
+        if (css[idx] === undefined) continue;
+        ctx.fillStyle = textColor[idx];
+        ctx.fillText(pat.legend[idx].symbol, x * cell + cell / 2, y * cell + cell / 2 + 1);
+      }
+    }
+  }
+
+  if ($('grid').checked && cell >= 6) {
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    for (let x = 0; x <= pat.width; x++) {
+      if (x % 10 === 0) continue;
+      const px = x * cell + (x === pat.width ? -0.5 : 0.5);
+      ctx.moveTo(px, 0); ctx.lineTo(px, canvas.height);
+    }
+    for (let y = 0; y <= pat.height; y++) {
+      if (y % 10 === 0) continue;
+      const py = y * cell + (y === pat.height ? -0.5 : 0.5);
+      ctx.moveTo(0, py); ctx.lineTo(canvas.width, py);
+    }
+    ctx.stroke();
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath();
+    for (let x = 0; x <= pat.width; x += 10) {
+      const px = Math.min(x * cell, canvas.width - 1);
+      ctx.moveTo(px, 0); ctx.lineTo(px, canvas.height);
+    }
+    for (let y = 0; y <= pat.height; y += 10) {
+      const py = Math.min(y * cell, canvas.height - 1);
+      ctx.moveTo(0, py); ctx.lineTo(canvas.width, py);
+    }
+    ctx.stroke();
+  }
+}
+
+function renderLegend() {
+  const pat = state.pattern;
+  const box = $('legend');
+  box.replaceChildren();
+  if (!pat) return;
+
+  const rows = [...pat.legend].sort((a, b) => b.count - a.count);
+  for (const c of rows) {
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+
+    const sw = document.createElement('div');
+    sw.className = 'swatch';
+    sw.style.background = `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+
+    const sym = document.createElement('div');
+    sym.className = 'sym';
+    sym.textContent = c.symbol;
+
+    const name = document.createElement('div');
+    name.className = 'legend-name';
+    name.textContent = `${c.code} ${c.name}`;
+    name.title = name.textContent;
+
+    const cnt = document.createElement('div');
+    cnt.className = 'count';
+    cnt.textContent = c.count;
+
+    row.append(sw, sym, name, cnt);
+    box.append(row);
+  }
+  const total = pat.legend.reduce((s, c) => s + c.count, 0);
+  $('legendTotal').textContent = `(${pat.legend.length} kolorów, ${total} ściegów)`;
+}
+
+/* ---------- wczytywanie zdjęcia ---------- */
+
+// Zdjęcie jest raz przepuszczane przez canvas i zapisywane jako PNG. Dzięki temu:
+//  - uwzględniona jest orientacja z EXIF (zdjęcia z telefonów),
+//  - Rust dostaje format, który na pewno umie zdekodować,
+//  - duże zdjęcia są zmniejszane przed skopiowaniem do pamięci WASM.
+async function prepareBytes(bitmap) {
+  const scale = Math.min(1, MAX_INPUT_SIDE / Math.max(bitmap.width, bitmap.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bitmap.width * scale));
+  c.height = Math.max(1, Math.round(bitmap.height * scale));
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, 0, 0, c.width, c.height);
+  const blob = await new Promise((resolve, reject) =>
+    c.toBlob((b) => (b ? resolve(b) : reject(new Error('Nie udało się zakodować zdjęcia'))), 'image/png'));
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+async function loadFile(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    setStatus('To nie jest plik graficzny.', true);
+    return;
+  }
+  setStatus('Wczytuję zdjęcie…');
+  try {
+    const bitmap = await createImageBitmap(file);
+    state.bytes = await prepareBytes(bitmap);
+    state.fileName = file.name;
+    $('fileinfo').textContent = `${file.name}: ${bitmap.width} × ${bitmap.height} px`;
+    $('drop').hidden = true;
+    $('canvas').hidden = false;
+    $('download').disabled = false;
+    generate();
+  } catch (e) {
+    console.error(e);
+    setStatus(`Nie udało się wczytać zdjęcia: ${e}`, true);
+  }
+}
+
+/* ---------- panel: jednostki i powiązania pól ---------- */
+
+function applyUnit() {
+  const unit = currentUnit();
+  const c = UNIT_CFG[unit];
+  const fields = [['width', c.wMin, c.wMax, c.w], ['height', c.hMin, c.hMax, c.h]];
+  for (const [id, min, max, val] of fields) {
+    for (const el of [$(id), $(id + 'Num')]) {
+      el.min = min; el.max = max; el.value = val;
+    }
+  }
+  $('widthUnit').textContent = c.label;
+  $('heightUnit').textContent = c.label;
+  $('densityRow').hidden = unit !== 'cm';
+}
+
+function applyKeep() {
+  const keep = $('keep').checked;
+  $('height').disabled = keep;
+  $('heightNum').disabled = keep;
+  $('heightHint').hidden = !keep;
+}
+
+// Suwak i pole liczbowe pokazują tę samą wartość. Źródłem prawdy jest suwak.
+function bindPair(rangeId) {
+  const r = $(rangeId), n = $(rangeId + 'Num');
+  r.addEventListener('input', () => { n.value = r.value; });
+  n.addEventListener('input', () => { if (n.value !== '') r.value = n.value; });
+  n.addEventListener('change', () => { n.value = r.value; });
+}
+
+function bindOutput(rangeId, outId) {
+  const r = $(rangeId), o = $(outId);
+  const sync = () => { o.textContent = r.value; };
+  r.addEventListener('input', sync);
+  sync();
+}
+
+bindPair('width');
+bindPair('height');
+bindOutput('colors', 'colorsOut');
+bindOutput('k', 'kOut');
+bindOutput('cell', 'cellOut');
+
+// zmiana ustawień, które wymagają przeliczenia wzoru
+for (const id of ['width', 'widthNum', 'height', 'heightNum', 'keep', 'density', 'colors', 'k']) {
+  $(id).addEventListener('input', scheduleGenerate);
+}
+document.querySelectorAll('input[name="unit"]').forEach((el) =>
+  el.addEventListener('change', () => { applyUnit(); scheduleGenerate(); }));
+$('keep').addEventListener('change', applyKeep);
+
+// zmiana samego wyglądu: wystarczy przerysować
+for (const id of ['cell', 'symbols', 'grid']) {
+  $(id).addEventListener('input', render);
+}
+
+// wczytywanie pliku: wybór i przeciąganie
+$('file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+const viewport = $('viewport');
+viewport.addEventListener('dragover', (e) => { e.preventDefault(); $('drop').classList.add('over'); });
+viewport.addEventListener('dragleave', () => $('drop').classList.remove('over'));
+viewport.addEventListener('drop', (e) => {
+  e.preventDefault();
+  $('drop').classList.remove('over');
+  loadFile(e.dataTransfer.files[0]);
+});
+
+// pobieranie podglądu
+$('download').addEventListener('click', () => {
+  $('canvas').toBlob((blob) => {
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${state.fileName.replace(/\.[^.]+$/, '') || 'wzor'}-wzor.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+});
+
+applyUnit();
+applyKeep();
+await initEngine();
+</script>
+</body>
+</html>

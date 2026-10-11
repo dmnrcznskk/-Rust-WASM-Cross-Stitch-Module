@@ -5,6 +5,13 @@ use prototype::processing::{color_reduction, dmc, image_io};
 use prototype::processing::image_io::{load_and_resize, CanvaProperties};
 use prototype::processing::aggregation::aggregate;
 
+   fn count_colors(img: &image::RgbaImage) -> usize {
+       img.pixels()
+           .map(|p| [p[0], p[1], p[2]])
+           .collect::<std::collections::HashSet<_>>()
+           .len()
+   }
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
 
@@ -20,14 +27,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let img = load_and_resize(&full_path, canva_prop, true, k)?;
     let aggregated = aggregate(&img, k);
     let quantized = color_reduction::quantize(&aggregated, 30, None)?;
-    let filtered = imageproc::filter::median_filter(&quantized, 1, 1);
 
     let colors = dmc::load_palette("dmc_palette.csv")?;
-    let mapped = dmc::map_to_palette(&filtered, &colors);
+    let mapped = dmc::map_to_palette(&quantized, &colors);
 
     image_io::save(&mapped, &out_path)?;
 
     println!("{:?}", start.elapsed());
+
+    println!("po quantize: {}", count_colors(&quantized));
+    println!("po DMC: {}", count_colors(&mapped));
 
     Ok(())
 }

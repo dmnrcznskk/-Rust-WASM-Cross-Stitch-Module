@@ -3,6 +3,9 @@ name = "prototype"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 csv = "1.4.0"
 image = "0.25.10"
@@ -12,4 +15,5 @@ quantize_palette = "0.1.1"
 rgb = "0.8.53"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
 getrandom = { version = "0.4", features = ["wasm_js"] }
