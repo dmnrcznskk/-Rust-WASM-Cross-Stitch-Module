@@ -103,25 +103,45 @@ pub fn save(img: &RgbaImage, out_path: &str) -> Result<(), Box<dyn std::error::E
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
     fn test_grid_width() {
-        let canva = CanvaProperties::new(10, None, 14).expect("Dupa");
+        let canva = CanvaProperties::from_cm(10, None, 14).expect("valid canvas");
         assert_eq!(canva.grid_width(), 55);
     }
 
     #[test]
     fn test_grid_height() {
-        let canva = CanvaProperties::new(10, Some(5), 14).expect("Dupa");
-        let gh = canva.grid_height().unwrap();
-        assert_eq!(gh, 28)
+        let canva = CanvaProperties::from_cm(10, Some(5), 14).expect("valid canvas");
+        assert_eq!(canva.grid_height(), Some(28));
     }
 
     #[test]
     fn test_grid_height_when_is_none() {
-        let canva = CanvaProperties::new(10, None, 14).expect("Dupa");
-        assert_eq!(canva.grid_height(), None)
+        let canva = CanvaProperties::from_cm(10, None, 14).expect("valid canvas");
+        assert_eq!(canva.grid_height(), None);
+    }
+
+    #[test]
+    fn test_stitches_are_used_directly() {
+        let canva = CanvaProperties::from_stitches(55, Some(40)).expect("valid canvas");
+        assert_eq!(canva.grid_width(), 55);
+        assert_eq!(canva.grid_height(), Some(40));
+    }
+
+    #[test]
+    fn test_stitches_height_none() {
+        let canva = CanvaProperties::from_stitches(55, None).expect("valid canvas");
+        assert_eq!(canva.grid_height(), None);
+    }
+
+    #[test]
+    fn test_zero_values_are_rejected() {
+        assert!(CanvaProperties::from_cm(0, None, 14).is_none());
+        assert!(CanvaProperties::from_cm(10, Some(0), 14).is_none());
+        assert!(CanvaProperties::from_cm(10, None, 0).is_none());
+        assert!(CanvaProperties::from_stitches(0, None).is_none());
+        assert!(CanvaProperties::from_stitches(55, Some(0)).is_none());
     }
 }

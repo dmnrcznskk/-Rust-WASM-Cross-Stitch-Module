@@ -1,15 +1,9 @@
 use image::DynamicImage;
 use std::time::Instant;
 
-mod importance_map;
-mod image_io;
-mod color_reduction;
-mod dmc;
-mod aggregation;
-
-use importance_map::ImportanceMap;
-use image_io::{load_and_resize, CanvaProperties};
-use aggregation::aggregate;
+use prototype::processing::{color_reduction, dmc, image_io};
+use prototype::processing::image_io::{load_and_resize, CanvaProperties};
+use prototype::processing::aggregation::aggregate;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
