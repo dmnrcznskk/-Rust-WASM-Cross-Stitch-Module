@@ -4,8 +4,6 @@ A Rust library, compiled to WebAssembly, that turns a photo into a cross-stitch 
 
 > **Status: work in progress.** The pipeline works end to end, but the importance map is not wired in yet and pattern quality has not been evaluated systematically.
 
-**Polish step-by-step guide (clone, build, run, use): [docs/INSTRUKCJA.md](docs/INSTRUKCJA.md)**
-
 ## How it works
 
 ```
