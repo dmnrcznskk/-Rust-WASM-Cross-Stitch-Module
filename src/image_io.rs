@@ -19,6 +19,7 @@ pub enum CanvaError {
 //
 
 
+#[derive(Debug, PartialEq)]
 pub enum CanvaProperties {
     Stitches { width: u32, height: Option<u32> },
     Centimeters { width: u32, height: Option<u32>, density_inches: u32 },
@@ -27,25 +28,28 @@ pub enum CanvaProperties {
 impl CanvaProperties {
     pub fn from_stitches(w: u32, h: Option<u32>) -> Option<Self> {
         if w == 0 || h == Some(0) { return None; }
-        Some(CanvaProperties{ w, h })
+        Some(CanvaProperties::Stitches { width: w, height: h })
     }
 
-    pub fn from_cm(w: u32, h: Option<u32>, density_inches: u32) {
+    pub fn from_cm(w: u32, h: Option<u32>, density_inches: u32) -> Option<Self> {
         if w == 0 || h == Some(0) || density_inches == 0 { return None; }
-        Some(CanvaProperties{ w, h, density_inches })
+        Some(CanvaProperties::Centimeters { width: w, height: h, density_inches })
     }
 
-    pub fn grid_height(&self) -> u32 {
+    pub fn grid_width(&self) -> u32 {
         match *self {
-            CanvaProperties::Stitches
+            CanvaProperties::Stitches { width, .. } => width,
+            CanvaProperties::Centimeters { width, density_inches, .. } => {
+                cm_to_stitches(width, density_inches)
+            }
         }
     }
 
     pub fn grid_height(&self) -> Option<u32> {
         match *self {
             CanvaProperties::Stitches { height, .. } => height,
-            CanvaProperties::Centimeters { height_cm, density_per_inch, .. } => {
-                height_cm.map(|h| cm_to_stitches(h, density_per_inch))
+            CanvaProperties::Centimeters { height, density_inches, .. } => {
+                height.map(|h| cm_to_stitches(h, density_inches))
             }
         }
     }
